@@ -3997,7 +3997,7 @@ SMODS.Enhancement {
 	loc_txt = {
 		name = 'Multimult Card',
 		text = {
-			jl.expomult('#1#') .. ' Mult',
+			jl.mulmult('#1#') .. ' Mult',
 			'{C:cry_exotic,s:0.6,E:1}Power Card{}'
 		}
 	},
@@ -6380,7 +6380,7 @@ SMODS.Consumable {
 			end
 		elseif card.ability.mana >= G.GAME.roffle_manareq then
 			card.ability.mana = card.ability.mana - G.GAME.roffle_manareq
-			card_eval_status_text(card, 'extra', nil, nil, nil, {message = '-' .. number.format(G.GAME.roffle_manareq) .. ' Mana', colour = G.C.RED})
+			card_eval_status_text(card, 'extra', nil, nil, nil, {message = '-' .. number_format(G.GAME.roffle_manareq) .. ' Mana', colour = G.C.RED})
 			G.GAME.roffle_manareq = G.GAME.roffle_manareq * 2
 			Q(function()
 				Q(function()
@@ -10570,7 +10570,7 @@ SMODS.Consumable {
 		immutable = true,
 		unique = true,
 		debuff_immune = true,
-		atlas = 'jenjester',
+		atlas = 'jenfeline',
 		loc_vars = function(self, info_queue, center)
 			return {vars = {
 				center.ability.tet
