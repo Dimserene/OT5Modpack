@@ -112,6 +112,18 @@ Jen = {
 				'j_jen_godsmarble'
 			}
 		},
+		--[[['A M A L G A M A T E'] = {
+			cost = 1e100,
+			output = 'j_jen_amalgam',
+			ingredients = {
+				'j_jen_pawn',
+				'j_jen_knight',
+				'j_jen_jester',
+				'j_jen_arachnid',
+				'j_jen_feline',
+				'j_jen_sigil'
+			}
+		},]]
 		['Mutate Clauneck'] = {
 			cost = 50,
 			output = 'j_jen_fateeater',
@@ -388,8 +400,6 @@ Jen = {
 			'!j_cry_curse_sob',
 			'!j_cry_filler',
 			'j_mf_colorem',
-			'j_mf_spiral',
-			'j_mf_triangle',
 			'betm_jokers_j_balatro_mobile',
 			'betm_jokers_j_gameplay_update',
 			'betm_jokers_j_friends_of_jimbo',
@@ -1229,18 +1239,17 @@ function gameover()
 	G.STATE_COMPLETE = true
 end
 
-table.insert(IncantationAddons.Stacking, 'jen_uno')
-table.insert(IncantationAddons.Stacking, 'jen_chess')
-table.insert(IncantationAddons.Stacking, 'jen_jokerability')
-table.insert(IncantationAddons.Stacking, 'jen_omegaconsumable')
-table.insert(IncantationAddons.Stacking, 'jen_tokens')
-table.insert(IncantationAddons.Dividing, 'jen_uno')
-table.insert(IncantationAddons.Dividing, 'jen_chess')
-table.insert(IncantationAddons.Dividing, 'jen_jokerability')
-table.insert(IncantationAddons.Dividing, 'jen_omegaconsumable')
-table.insert(IncantationAddons.Dividing, 'jen_tokens')
-table.insert(IncantationAddons.BulkUse, 'jen_uno')
-table.insert(IncantationAddons.BulkUse, 'jen_tokens')
+AllowStacking('jen_chess')
+AllowStacking('jen_jokerability')
+AllowStacking('jen_omegaconsumable')
+AllowStacking('jen_tokens')
+AllowDividing('jen_uno')
+AllowDividing('jen_chess')
+AllowDividing('jen_jokerability')
+AllowDividing('jen_omegaconsumable')
+AllowDividing('jen_tokens')
+AllowMassUsing('jen_uno')
+AllowBulkUse('jen_tokens')
 
 AurinkoAddons.jen_wee = function(card, hand, instant, amount)
 	if card and not card.playing_card then
@@ -1702,7 +1711,7 @@ function Card:sell_card()
 	end
 	if CEN and (CEN.key == 'j_cry_altgoogol' or CEN.key == 'j_blueprint') then
 		for k, v in ipairs(G.jokers.cards) do
-			if v.gc then
+			if v.gc and v ~= self then
 				local key = v:gc().key
 				if key == 'j_cry_altgoogol' or key == 'j_blueprint' or key == 'c_cry_pointer' then
 					v:remove_from_deck()
@@ -2384,7 +2393,7 @@ if Jen.config.chess_cards then
 			collection = 'Chess Cards',
 			name = 'Chess Piece'
 		},
-		shop_rate = 3
+		shop_rate = 2
 	}
 end
 
@@ -3527,6 +3536,7 @@ local atlases = {
 	'arachnid',
 	'reign',
 	'feline',
+	'amalgam',
 	'fateeater',
 	'foundry',
 	'broken',
@@ -5578,6 +5588,7 @@ SMODS.Joker {
 	unique = true,
 	unlocked = true,
 	discovered = true,
+	fusable = true,
 	blueprint_compat = false,
 	eternal_compat = true,
 	perishable_compat = false,
@@ -7796,6 +7807,7 @@ SMODS.Joker {
 	sinis = { x = 2, y = 0 },
 	cost = 50,
 	rarity = 'cry_exotic',
+	fusable = true,
 	unlocked = true,
 	discovered = true,
 	blueprint_compat = true,
@@ -11948,8 +11960,8 @@ SMODS.Joker {
 		return {vars = {number_format(get_max_malice()) == '0' and '' or get_malice(), number_format(get_max_malice()) == '0' and '' or get_max_malice(), number_format(get_max_malice()) == '0' and 'Maxed out' or ' / '}}
 	end
 }
---[[
-SMODS.Joker {
+
+--[[SMODS.Joker {
 	key = 'sigil',
 	loc_txt = {
 		name = '{s:3,E:1,C:dark_edition}Jen\'s Sigil',
@@ -11982,8 +11994,8 @@ SMODS.Joker {
 	permaeternal = true,
 	unique = true,
 	atlas = 'jensigil'
-}
-]]
+}]]
+
 function Card:destroy(dissolve_colours, silent, dissolve_time_fac, no_juice)
 	self.ability.eternal = nil
 	self.ignore_incantation_consumable_in_use = true
@@ -14082,7 +14094,7 @@ SMODS.Consumable {
 		text = {
 			'Upgrade a {C:green}random',
 			'poker hand by {C:attention}one-twentieth',
-			'{C:inactive,s:0.75}(Cannot be editioned, and does not trigger Tähtitiede or leveling jokers)',
+			'{C:inactive,s:0.75}(Cannot be editioned, and does not trigger Astronomicon or leveling jokers)',
 			'{C:dark_edition,s:0.7,E:2}Art by : Maxie'
 		}
 	},
@@ -14823,6 +14835,7 @@ SMODS.Consumable {
 	set_card_type_badge = natsat,
 	pos = { x = 5, y = 2 },
 	cost = 3,
+	jumbo_mod = 3,
 	aurinko = true,
 	unlocked = true,
 	discovered = true,
@@ -19090,8 +19103,6 @@ SMODS.Consumable {
 		return true end)
 		jl.rd(3)
 		if G.GAME.round_resets.ante > 2 then ease_ante(math.floor(-G.GAME.round_resets.ante / 4 * 3), true) end
-		Q(function() G.jokers:change_size_absolute(1 - G.jokers.config.card_limit) return true end)
-		G.consumeables:change_size_absolute(G.consumeables.config.card_limit)
 		createfulldeck()
 		jl.a('Baaaa.', G.SETTINGS.GAMESPEED, 1, G.C.RED)
 		card.sell_cost = 0
@@ -19100,7 +19111,10 @@ SMODS.Consumable {
 			kosmos.ability.eternal = true
 			kosmos:add_to_deck()
 			G.jokers:emplace(kosmos)
-			ease_dollars(-G.GAME.dollars + 4)
+			ease_dollars(-G.GAME.dollars)
+			Q(function() G.jokers:change_size_absolute(1 - G.jokers.config.card_limit) return true end)
+			G.consumeables:change_size_absolute(G.consumeables.config.card_limit)
+			ease_dollars(4)
 		return true end, 1)
 	end
 }
@@ -19266,7 +19280,7 @@ local vchrs = {
 				'will {C:planet}level up{} a {C:green}random',
 				'{C:attention}discovered poker hand{} by',
 				'an {C:attention}eighth{} of its {C:money}sell value',
-				'{C:inactive}(Applies on top of Tähtitiede VI)',
+				'{C:inactive}(Applies on top of Astronomicon VI)',
 				' ',
 				redeemprev
 			},
@@ -19293,15 +19307,15 @@ local vchrs = {
 				'Whenever hand levels are {C:red}lost{},',
 				'{C:attention}25% of those levels{} are',
 				'instead {C:attention}redirected to the most played hand',
-				'{C:inactive}(Does not trigger joker effects or Tähtitiede)',
+				'{C:inactive}(Does not trigger joker effects or Astronomicon)',
 				' ',
 				redeemprev
 			},
 			{ --12
 				'{C:attention}Most-played hand{} gains a {C:attention}10% dividend',
 				'whenever {C:attention}any other hand{} levels up',
-				'{C:inactive}(Does not trigger joker effects or Tähtitiede)',
-				'{C:attention}Tähtitiede I and II{} now also',
+				'{C:inactive}(Does not trigger joker effects or Astronomicon)',
+				'{C:attention}Astronomicon I and II{} now also',
 				'extend to {C:attention}second-adjacent{} hands',
 				' ',
 				redeemprev
@@ -19359,7 +19373,7 @@ local vchrs = {
 			{ --6
 				'{C:spectral}Black Holes{} are',
 				'{C:attention}300 times{} as strong',
-				'{C:inactive,s:0.8}(Overwrites Singularis IV)',
+				'{C:inactive,s:0.8}(Overwrites Singularium IV)',
 				redeemprev
 			},
 			{ --7
@@ -19442,7 +19456,7 @@ function Card:apply_to_run(center)
 	if self and self.gc and self:gc().autoredeem then
 		for k, v in ipairs(self:gc().autoredeem) do
 			if not G.GAME.used_vouchers[v] then
-				jl.voucher(v)
+				Q(function() jl.voucher(v) return true end)
 			end
 		end
 	end
@@ -19472,9 +19486,10 @@ local omegas_found = 0
 
 function create_card(_type, area, legendary, _rarity, skip_materialize, soulable, forced_key, key_append)
 	local card = ccr(_type, area, legendary, _rarity, skip_materialize, soulable, forced_key, key_append)
-	if G.STAGE ~= G.STAGES.MAIN_MENU and card.gc and card:gc() then
+	if G.STAGE ~= G.STAGES.MAIN_MENU and card.gc then
+		local cen = card:gc()
 		for k, v in ipairs(omegaconsumables) do
-			if card:gc().key == ('c_' .. v) and G.P_CENTERS['c_jen_' .. v .. '_omega'] and not G.GAME.banned_keys['c_jen_' .. v .. '_omega'] and jl.chance('omega_replacement', chance_for_omega(v), true) then
+			if cen.key == ('c_' .. v) and G.P_CENTERS['c_jen_' .. v .. '_omega'] and not G.GAME.banned_keys['c_jen_' .. v .. '_omega'] and jl.chance('omega_replacement', chance_for_omega(v), true) then
 				G.E_MANAGER:add_event(Event({trigger = 'after', blockable = false, blocking = false, func = function()
 					if card and not card.no_omega then
 						card:set_ability(G.P_CENTERS['c_jen_' .. v .. '_omega'])
@@ -19489,6 +19504,17 @@ function create_card(_type, area, legendary, _rarity, skip_materialize, soulable
 					return true
 				end }))
 				break
+			--[[elseif cen.set == 'Joker' and tostring(cen.rarity or '') == '1' and #SMODS.find_card('j_jen_sigil') < 0 and jl.chance('sigil_replacement', 2000, true) then
+				G.E_MANAGER:add_event(Event({trigger = 'after', blockable = false, blocking = false, func = function()
+					if card and not card.no_omega then
+						card:set_ability(G.P_CENTERS['j_jen_sigil'])
+						card:set_cost()
+						play_sound('jen_omegacard', .5, 0.4)
+						card:juice_up(1.5, 1.5)
+						Q(function() play_sound_q('jen_chime', .5, 0.65); jl.a('Sigil!', G.SETTINGS.GAMESPEED * 2, 1, G.C.jen_RGB); jl.rd(2); return true end)
+					end
+					return true
+				end }))]]
 			end
 		end
 	end

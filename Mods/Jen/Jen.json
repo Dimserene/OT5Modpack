@@ -12,7 +12,7 @@
 		"nopeus (>=2.2.3)",
 		"aurinko (>=0.4.13)",
 		"Talisman (>=2.0.2) (<<2.1.0~dev)",
-		"incantation (>=0.5.10)",
+		"incantation (>=0.6.1)",
 		"JenLib (>=0.4.0)",
 		"Cryptid (>=0.5.3d)"
     ],

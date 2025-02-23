@@ -7,7 +7,7 @@
 --- PRIORITY: 89999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999
 --- BADGE_COLOR: 000000
 --- PREFIX: inc
---- VERSION: 0.6.0
+--- VERSION: 0.6.1
 --- LOADER_VERSION_GEQ: 1.0.0
 
 Incantation = {consumable_in_use = false, accelerate = false} --will port more things over to this global later, but for now it's going to be mostly empty
@@ -92,6 +92,9 @@ Incantation.BulkUsableIndividual = {
 }
 
 Incantation.MassUsable = {
+}
+
+Incantation.MassUsableIndividual = {
 	'c_black_hole'
 }
 
@@ -139,10 +142,17 @@ function AllowBulkUseIndividual(key)
 	end
 end
 
-function AllowMassUsing(key)
+function AllowMassUsing(set)
+	AllowBulkUse(set)
+	if not tablecontains(Incantation.MassUsable, set) then
+		table.insert(Incantation.MassUsable, set)
+	end
+end
+
+function AllowMassUsingIndividual(key)
 	AllowBulkUseIndividual(key)
-	if not tablecontains(Incantation.MassUsable, key) then
-		table.insert(Incantation.MassUsable, key)
+	if not tablecontains(Incantation.MassUsableIndividual, key) then
+		table.insert(Incantation.MassUsableIndividual, key)
 	end
 end
 
@@ -157,7 +167,9 @@ if not IncantationAddons then
 		BulkUse = {},
 		StackingIndividual = {},
 		DividingIndividual = {},
-		BulkUseIndividual = {}
+		BulkUseIndividual = {},
+		MassUse = {},
+		MassUseIndividual = {}
 	}
 end
 
@@ -198,7 +210,12 @@ if IncantationAddons then
 	end
 	if #IncantationAddons.MassUse > 0 then
 		for _, v in pairs(IncantationAddons.MassUse) do
-			AllowMassUse(v)
+			AllowMassUsing(v)
+		end
+	end
+	if #IncantationAddons.MassUseIndividual > 0 then
+		for _, v in pairs(IncantationAddons.MassUseIndividual) do
+			AllowMassUsingIndividual(v)
 		end
 	end
 end
@@ -258,7 +275,7 @@ function Card:CanBulkUse(ignoreunsafe)
 end
 
 function Card:CanMassUse()
-	return (self.config.center and (type(self.config.center.can_mass_use) == 'function' and self.config.center:can_mass_use() or self.config.center.can_mass_use)) or tablecontains(Incantation.MassUsable, self.config.center_key)
+	return (self.config.center and (type(self.config.center.can_mass_use) == 'function' and self.config.center:can_mass_use() or self.config.center.can_mass_use)) or tablecontains(Incantation.MassUsable, self.ability.set) or tablecontains(Incantation.MassUsableIndividual, self.config.center_key)
 end
 
 function Card:getmaxuse()

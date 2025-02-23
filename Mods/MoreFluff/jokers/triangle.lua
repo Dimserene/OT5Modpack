@@ -7,7 +7,7 @@ local joker = {
   },
   pos = {x = 9, y = 4},
   soul_pos = {x = 9, y = 5},
-  drama = {x = 5, y = 5},
+  sinis = {x = 5, y = 5},
   rarity = 4,
   cost = 20,
   unlocked = true,
@@ -30,8 +30,8 @@ local joker = {
     }
   end,
   calculate = function(self, card, context)
-    local text, disp_text, poker_hands, scoring_hand, non_loc_disp_text = G.FUNCS.get_poker_hand_info(G.play.cards)
     if context.individual and context.cardarea == G.play then
+      local text, disp_text, poker_hands, scoring_hand, non_loc_disp_text = G.FUNCS.get_poker_hand_info(G.play.cards)
       if non_loc_disp_text == "Three of a Kind" then
         return {
           x_mult = card.ability.extra.x_mult,
