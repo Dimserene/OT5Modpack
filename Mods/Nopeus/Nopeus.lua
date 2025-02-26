@@ -6,7 +6,7 @@
 --- MOD_DESCRIPTION: An extension of MoreSpeeds which includes more options, including a new speed which makes the event manager run as fast as it can.
 --- BADGE_COLOR: ff3c3c
 --- PREFIX: nopeus
---- VERSION: 2.2.4
+--- VERSION: 2.2.5
 --- LOADER_VERSION_GEQ: 1.0.0
 
 Nopeus = {
@@ -16,7 +16,7 @@ Nopeus = {
 	Optimised = 'Everything (Skip Misc.)',
 	Unsafe = 'Unsafe',
 	AllText = 'All',
-	NoAgain = 'No "Again!"/"Upgrade!"',
+	NoAgain = 'Less Annoying',
 	NoMisc = 'No Misc.',
 	NoText = 'None'
 }
@@ -123,13 +123,15 @@ function card_eval_status_text(card, eval_type, amt, percent, dir, extra)
 		if eval_type == 'extra' then return end
 		local msg = ((extra or {}).message or '')
 		local is_again_msg = ((extra or {}).nopeus_again)
-		if is_again_msg or msg == localize('k_again_ex') or msg == 'Again?' or msg == localize('k_upgrade_ex') then
+		local colourcard = (((card or {}).config or {}).center or {}).set == 'Colour'
+		if is_again_msg or msg == localize('k_again_ex') or msg == 'Again?' or msg == localize('k_upgrade_ex') or colourcard then
 			return
 		end
 	elseif G.SETTINGS.STATUSTEXT == 1 then
 		local msg = ((extra or {}).message or '')
 		local is_again_msg = ((extra or {}).nopeus_again)
-		if is_again_msg or msg == localize('k_again_ex') or msg == 'Again?' or msg == localize('k_upgrade_ex') then
+		local colourcard = (((card or {}).config or {}).center or {}).set == 'Colour'
+		if is_again_msg or msg == localize('k_again_ex') or msg == 'Again?' or msg == localize('k_upgrade_ex') or colourcard then
 			return
 		end
 	end
