@@ -898,27 +898,6 @@ function Jen.overpowered(rarity)
 	return jl.bf(rarity, Jen.overpowered_rarities)
 end
 
-local function bismuth_retriggers()
-	local amnt = 0
-	if not G.jokers or not G.consumeables or not G.playing_cards then return 1 end
-	for k, v in ipairs(G.jokers.cards) do
-		if v.edition and v.edition.jen_bismuth then
-			amnt = math.max(1, amnt * 2)
-		end
-	end
-	for k, v in ipairs(G.consumeables.cards) do
-		if v.edition and v.edition.jen_bismuth then
-			amnt = math.max(1, amnt * 2)
-		end
-	end
-	for k, v in ipairs(G.playing_cards) do
-		if v.edition and v.edition.jen_bismuth then
-			amnt = math.max(1, amnt * 2)
-		end
-	end
-	return math.max(1, amnt)
-end
-
 function Card:speak(text, col)
 	if type(text) == 'table' then text = text[math.random(#text)] end
 	card_eval_status_text(self, 'extra', nil, nil, nil, {message = text, colour = col or G.C.FILTER})
@@ -954,11 +933,6 @@ function Card:draw(layer)
 			if self.config then
 				local should_scare = not CEN.cant_scare and ((Jen.gods() and CEN.fusable) or Jen.sinister)
 				local should_scare2 = not CEN.cant_scare and ((Jen.gods() and CEN.fusable) or Jen.dramatic)
-				if self.edition then
-					if self.edition.jen_bismuth then
-						self.edition.retriggers = bismuth_retriggers()
-					end
-				end
 				if CEN.key == 'j_jen_dandy' and math.random(800) == 1 then
 					self.dandy_glitch = math.random(10, 80)
 					if self.children then
@@ -1569,15 +1543,36 @@ function add_malice(mod, now, unscaled)
 	end
 end
 
+function set_dollars(mod)
+	mod = mod or 0
+	Q(function()
+		local dollar_UI = G.HUD:get_UIE_by_ID('dollar_text_UI')
+		local text = '='..localize('$')
+		local col = G.C.FILTER
+        G.GAME.dollars = mod
+        dollar_UI.config.object:update()
+        G.HUD:recalculate()
+        attention_text({
+          text = text..tostring(mod),
+          scale = 0.8, 
+          hold = 0.7,
+          cover = dollar_UI.parent,
+          cover_colour = col,
+          align = 'cm',
+          })
+        play_sound('coin1')
+	return true end)
+end
+
 local edr = ease_dollars
 function ease_dollars(mod, instant, force_update)
-	if (G.GAME.dollars + mod ~= G.GAME.dollars and math.abs(mod) > (G.GAME.dollars / 1e6)) or force_update then
+	if (G.GAME.dollars + mod ~= G.GAME.dollars and math.abs(mod) > (math.abs(G.GAME.dollars) / 1e6)) or force_update then
 		edr(mod,instant)
-		local should_clamp = jl.invalid_number(number_format(G.GAME.dollars)) or G.GAME.dollars > 1e100 or G.GAME.dollars < -1e100
-		if should_clamp then
-			G.GAME.dollars = jl.invalid_number(number_format(G.GAME.dollars)) and 1e100 or math.min(math.max(G.GAME.dollars, -1e100), 1e100)
-			ease_dollars(0, true, true)
-		end
+	end
+	local should_clamp = jl.invalid_number(number_format(G.GAME.dollars)) or G.GAME.dollars > 1e100 or G.GAME.dollars < -1e100
+	if should_clamp then
+		local set_to = jl.invalid_number(number_format(G.GAME.dollars)) and 1e100 or math.min(math.max(G.GAME.dollars, -1e100), 1e100)
+		set_dollars(set_to)
 	end
 end
 
@@ -1605,8 +1600,15 @@ function ease_ante(mod, no_straddle, no_ante_boost, safe_rewind)
 	end
 	if Jen.config.straddle.enabled and G.GAME.straddle and mod ~= 0 and not no_straddle then
 		if math.ceil(mod) > 1 then mod = mod - G.GAME.straddle end
-		local MIN = Jen.config.straddle.progress_min * (G.GAME.tortise and 2 or 1)
-		local MAX = Jen.config.straddle.progress_max * (G.GAME.tortise and 2 or 1)
+		local length_multiplier = 1
+		if #SMODS.find_card('j_jen_pickel') > 0 then
+			length_multiplier = length_multiplier * 2
+		end
+		if G.GAME.tortoise then
+			length_multiplier = length_multiplier * 2
+		end
+		local MIN = Jen.config.straddle.progress_min * length_multiplier
+		local MAX = Jen.config.straddle.progress_max * length_multiplier
 		local spd = math.min(4, 1 + (G.GAME.straddle / 100))
 		local spd_additive = .1 * spd
 		local add = (math.abs(mod) * (Jen.config.straddle.acceleration and math.ceil(math.max(1, (G.GAME.straddle - (MAX ^ 2))) / Jen.config.straddle.progress_increment) or 1) * (mod < 0 and Jen.config.straddle.backwards_mod or 1))
@@ -1745,7 +1747,7 @@ local scr = Card.sell_card
 
 function Card:sell_card()
 	local CEN = self.gc and self:gc()
-	if CEN and CEN.set ~= 'Planet' and CEN.key ~= 'c_black_hole' and Jen.hv('astronomy', 5) then
+	if CEN and CEN.set ~= 'Planet' and CEN.key ~= 'c_black_hole' and Jen.hv('astronomy', 5) and not (self.edition or {}).negative and self:norankorsuit() then
 		for i = 1, self:getEvalQty() do
 			Q(function()
 				local card2 = create_card('Planet', G.consumeables, nil, nil, nil, nil, nil, 'astronomy5_planet')
@@ -2194,7 +2196,7 @@ function Game:update(dt)
 		end
 		G.P_CENTERS.c_soul.fusable = true
 		G.P_CENTERS.c_black_hole.fusable = true
-		G.P_CENTERS.c_cry_white_hole.fusable = true
+		if G.P_CENTERS.c_cry_white_hole then G.P_CENTERS.c_cry_white_hole.fusable = true end
 		misc_done = true
 	end
 	game_updateref(self, dt)
@@ -2594,7 +2596,7 @@ local shaders = {
 	--'graymatter',
 	--'hardstone',
 	--'bedrock',
-	'bismuth',
+	--'bismuth',
 	'unreal',
 	'ionized',
 	'diplopia',
@@ -2982,50 +2984,13 @@ SMODS.Edition({
 })
 
 SMODS.Edition({
-    key = "bismuth",
-    loc_txt = {
-        name = "Bismuth",
-        label = "Bismuth",
-        text = {
-			'{C:attention}Retrigger{} this card {C:attention}#1#{} time(s)',
-			'Number of retriggers {C:attention}doubles{} for every {C:dark_edition}Bismuth{} card owned',
-			'{C:dark_edition,s:0.7,E:2}Shader by : Oiiman'
-        }
-    },
-	misc_badge = {
-		colour = G.C.RARITY[3],
-		text = {
-			"Rare"
-		}
-	},
-    shader = 'bismuth',
-    discovered = true,
-    unlocked = true,
-    config = {retriggers = 1},
-	sound = {
-		sound = 'jen_e_bismuth',
-		per = 1,
-		vol = 0.5
-	},
-    in_shop = true,
-    weight = 2,
-    extra_cost = 8,
-    apply_to_float = false,
-	get_weight = function(self)
-        return G.GAME.edition_rate * self.weight
-    end,
-    loc_vars = function(self)
-        return { vars = { bismuth_retriggers() } }
-    end
-})
-
-SMODS.Edition({
     key = "encoded",
     loc_txt = {
         name = "Encoded",
         label = "Encoded",
         text = {
-			'Creates {C:attention}#1# {C:dark_edition}Negative {C:cry_code}Code{} cards when destroyed/sold',
+			'Creates {C:attention}#1# {C:dark_edition}Negative {C:cry_code}Code{} cards',
+			'when destroyed, sold or used',
 			mayoverflow,
 			'{C:dark_edition,s:0.7,E:2}Shader by : Oiiman'
         }
@@ -4560,7 +4525,7 @@ SMODS.Enhancement {
 							local poll = pseudorandom(pseudoseed('perkeo'))*total
 							for i = 1, #G.consumeables.cards do
 								checked = checked + (G.consumeables.cards[i]:getQty())
-								if checked >= poll and G.consumeables.cards[i]:gc().key ~= 'c_cry_pointer' then
+								if checked >= poll and G.consumeables.cards[i]:gc().key ~= 'c_cry_pointer' and not G.consumeables.cards[i]:gc().no_perkeo then
 									center = G.consumeables.cards[i]
 									break
 								end
@@ -5939,7 +5904,7 @@ SMODS.Joker {
         return {vars = {center.ability.add, jl.favhand(), #SMODS.find_card('j_jen_jeremy') > 0 and cheese_quotes.bb[math.random(#cheese_quotes.bb)] or cheese_quotes.normal[math.random(#cheese_quotes.normal)]}}
     end,
     calculate = function(self, card, context)
-		if context.cardarea == G.jokers and not context.before and not context.after and context.poker_hands and next(context.poker_hands[jl.favhand()]) then
+		if context.cardarea == G.jokers and not context.before and not context.after and context.poker_hands and context.scoring_name and context.scoring_name == jl.favhand() then
 			card_eval_status_text(card, 'extra', nil, nil, nil, {message = cheese_quotes.trigger[math.random(#cheese_quotes.trigger)], colour = G.C.BLUE})
 			ease_hands_played(card.ability.add or 1)
 			return nil, true
@@ -5996,35 +5961,35 @@ SMODS.Joker {
 	end
 }
 
---[[
 SMODS.Joker {
 	key = 'pickel',
 	loc_txt = {
 		name = 'Pickelcat',
 		text = {
-			'Grants the {C:green}ability',
-			'to {C:attention}fuse certain cards',
-			"{C:inactive,E:1}#1#",
+			'{C:attention}Straddle{} takes {C:attention}twice',
+			'as long to progress',
+			caption('#1#'),
 			faceart('idot1537'),
 			origin('Rain World')
 		}
 	},
-	config = {},
 	pos = { x = 0, y = 0 },
 	soul_pos = { x = 1, y = 0 },
-	cost = 3,
-	rarity = 1,
+	cost = 12,
+	rarity = 'cry_epic',
 	unlocked = true,
 	discovered = true,
-	blueprint_compat = true,
+	blueprint_compat = false,
 	eternal_compat = true,
 	perishable_compat = false,
+	debuff_immune = true,
+	unique = true,
 	atlas = 'jenpickel',
+	in_pool = function() return G.GAME.straddle end,
     loc_vars = function(self, info_queue, center)
-        return {vars = {math.random(2) == 1 and "I don't know how to drive Undertale!" or "I'mma gonna insane."}}
+        return {vars = {math.random(2) == 1 and 'I don\'t know how to drive Undertale!' or 'I\'mma gonna insane.'}}
     end
 }
-]]
 
 local aster_blurbs = {
 	'To the stars!',
@@ -10009,19 +9974,19 @@ SMODS.Joker {
 function manage_level_colour(level, force)
 	local new_colour = G.C.WHITE
 	if not G.C.HAND_LEVELS[level] or force then 
-		if level >= 1e200 then
+		if level >= 1e80 then
 			new_colour = G.C.jen_RGB
-		elseif level >= 1e150 then
+		elseif level >= 1e60 then
 			new_colour = G.C.CRY_ASCENDANT
-		elseif level >= 1e125 then
-			new_colour = G.C.CRY_TWILIGHT
-		elseif level >= 1e100 then
-			new_colour = G.C.CRY_EMBER
-		elseif level >= 1e75 then
-			new_colour = G.C.CRY_BLOSSOM
 		elseif level >= 1e50 then
+			new_colour = G.C.CRY_TWILIGHT
+		elseif level >= 1e40 then
+			new_colour = G.C.CRY_EMBER
+		elseif level >= 1e30 then
+			new_colour = G.C.CRY_BLOSSOM
+		elseif level >= 1e20 then
 			new_colour = G.C.CRY_EXOTIC
-		elseif level >= 1e25 then
+		elseif level >= 1e10 then
 			new_colour = G.C.EDITION
 		elseif level > 7200 then
 			new_colour = G.C.DARK_EDITION
@@ -10133,7 +10098,7 @@ end
 
 local luhr = level_up_hand
 function level_up_hand(card, hand, instant, amount, no_astronomy, no_astronomy_omega, no_jokers)
-	amount = amount or 1
+	amount = math.min(amount or 1, 1e100) --until we port to newcalc, this will be capped to a googol
 	if not no_astronomy and amount > 0 then
 		if Jen.hv('astronomy', 9) then
 			amount = amount * 5
@@ -10144,7 +10109,7 @@ function level_up_hand(card, hand, instant, amount, no_astronomy, no_astronomy_o
 	if amount > 0 then
 		if #SMODS.find_card('j_jen_guilduryn') > 0 and hand ~= jl.favhand() then
 			for k, v in ipairs(G.jokers.cards) do
-				if v.gc and v:gc().key == 'j_jen_guilduryn' then
+				if (G.SETTINGS.STATUSTEXT or 0) < 1 and v.gc and v:gc().key == 'j_jen_guilduryn' then
 					card_eval_status_text(v, 'extra', nil, nil, nil, {message = 'Redirected!', colour = G.C.MONEY})
 					break
 				end
@@ -10159,10 +10124,10 @@ function level_up_hand(card, hand, instant, amount, no_astronomy, no_astronomy_o
 	if amount > 0 then
 		add_malice(25 * amount)
 	end
-	if jl.invalid_number(number_format(G.GAME.hands[hand].level)) then
-		G.GAME.hands[hand].level = 1e300
+	if G.GAME.hands[hand].level > 1e100 then --until we port to newcalc (which the new talisman is at), this failsafe will remain here.
+		G.GAME.hands[hand].level = 1e100
 		if not instant then
-			update_hand_text({sound = 'button', volume = 0.7, pitch = 0.8, delay = 0.3}, {level=maxfloat})
+			update_hand_text({sound = 'button', volume = 0.7, pitch = 0.8, delay = 0.3}, {level=1e100})
 			delay(0.3)
 		end
 	end
@@ -10361,12 +10326,11 @@ SMODS.Consumable {
 			'{C:attention}Combines{} selected Jokers/Consumables',
 			'if they make up a {C:attention}valid recipe',
 			'{C:inactive}(This card only appears if you have at least 1 fusable)',
-			'{C:inactive}(Some recipes may require more than 2 ingredients. Experiment!)',
-			'{X:dark_edition,C:white}Negative{} {X:dark_edition,C:white}Ability:{} Gain {C:money}$3',
-			'{V:1,s:1.25,E:1}(#1#)'
+			'{C:inactive}(Some recipes may require more than 2 ingredients. Experiment!)'
 		}
 	},
 	config = {},
+	no_perkeo = true,
 	set = 'jen_jokerability',
 	permaeternal = true,
 	pos = { x = 0, y = 0 },
@@ -15109,10 +15073,10 @@ SMODS.Consumable {
 			delay(1.3)
 			for _, hand in ipairs(G.handlist) do
 				local shift = pseudorandom('dysnomia', math.floor(card.ability.extra.down), math.ceil(card.ability.extra.up))
-				jl.th(hand)
 				if shift ~= 0 then
 					level_up_hand(card, hand, true, shift)
 				end
+				jl.th(hand)
 			end
 			jl.ch()
 		end
@@ -15169,10 +15133,10 @@ SMODS.Consumable {
 			update_hand_text({ sound = "button", volume = 0.7, pitch = 0.9, delay = 0 }, { level = '-' .. card.ability.extra.down*number .. '~+' .. card.ability.extra.up*number })
 			delay(1.3)
 			for hand, lv in pairs(hands) do
-				jl.th(hand)
 				if lv ~= 0 then
 					level_up_hand(card, hand, true, lv)
 				end
+				jl.th(hand)
 			end
 			jl.ch()
 		end
@@ -16612,6 +16576,7 @@ SMODS.Consumable {
 		for k, v in pairs(G.GAME.hands) do
 			if v.played > 0 then
 				level_up_hand(card, k, true, v.played/20)
+				jl.th(k)
 			end
 		end
 		jl.ch()
@@ -16654,6 +16619,7 @@ SMODS.Consumable {
 		for k, v in pairs(G.GAME.hands) do
 			if v.played > 0 then
 				level_up_hand(card, k, true, (v.played/20) * number)
+				jl.th(k)
 			end
 		end
 		jl.ch()
@@ -16763,11 +16729,14 @@ SMODS.Consumable {
 		update_operator_display_custom(' ', G.C.WHITE)
 		local evaluator = create_playing_card(nil, G.play, nil, nil, {G.C.SECONDARY_SET.Planet})
 		evaluator.oberon_created = true
+		if card.edition then
+			evaluator:set_edition(card.edition, true, true)
+		end
 		local cumulative = 0
 		delay(3)
 		jl.hn(SMODS.Ranks[evaluator.base.value].key .. ' of ' .. SMODS.Suits[evaluator.base.suit].key)
 		play_sound_q('button')
-		Q(function() evaluator:juice_up(0.8, 0.5) return true end)
+		Q(function() if evaluator then evaluator:juice_up(0.8, 0.5) evaluator.highlighted = true end return true end)
 		delay(3)
 		local identical = count_identical_cards(evaluator.base.id, evaluator.base.suit)
 		if identical > 0 then
@@ -16789,7 +16758,7 @@ SMODS.Consumable {
 			delay(3)
 			update_operator_display()
 		end
-		Q(function() if evaluator then evaluator:destroy() end return true end)
+		Q(function() if evaluator then evaluator.highlighted = false evaluator:destroy() end return true end)
 		jl.ch()
 	end,
 	bulk_use = function(self, card, area, copier, number)
@@ -16800,13 +16769,16 @@ SMODS.Consumable {
 		for i = 1, number do
 			evaluators[i] = create_playing_card(nil, G.play, nil, nil, {G.C.SECONDARY_SET.Planet})
 			evaluators[i].oberon_created = true
+			if card.edition then
+				evaluators[i]:set_edition(card.edition, true, true)
+			end
 		end
 		local cumulative = 0
 		delay(3)
 		for k, evaluator in ipairs(evaluators) do
 			jl.hn(SMODS.Ranks[evaluator.base.value].key .. ' of ' .. SMODS.Suits[evaluator.base.suit].key)
 			play_sound_q('button')
-			Q(function() evaluator:juice_up(0.8, 0.5) return true end)
+			Q(function() if evaluator then evaluator:juice_up(0.8, 0.5) evaluator.highlighted = true end return true end)
 			delay(3)
 			local identical = count_identical_cards(evaluator.base.id, evaluator.base.suit)
 			if identical > 0 then
@@ -16820,14 +16792,14 @@ SMODS.Consumable {
 					delay(0.25)
 				end
 				delay(2.75)
-				update_operator_display()
 			else
 				if cumulative <= 0 then jl.hcm('Nope!', 'Nope!') else jl.hc('Nope!') end
 				play_sound_q('timpani')
 				delay(3)
-				update_operator_display()
 			end
+			Q(function() if evaluator then evaluator.highlighted = false end return true end)
 		end
+		update_operator_display()
 		if cumulative > 0 then
 			card:blackhole(cumulative)
 		end
@@ -16894,11 +16866,11 @@ SMODS.Consumable {
 		local hands = jl.adjacenthands(fav)
 		local lv = 0
 		local levels_siphoned = 0
-		local divisor = 1 / (2^(number-1))
+		local divisor = 2 - (1 / (2^(number-1)))
 		if hands.backhand then
 			if G.GAME.hands[hands.backhand].level > 0 then
 				jl.th(hands.backhand)
-				lv = (G.GAME.hands[hands.backhand].level/2) / divisor
+				lv = (G.GAME.hands[hands.backhand].level/divisor)
 				level_up_hand(card, hands.backhand, nil, -lv)
 				levels_siphoned = lv
 			end
@@ -16906,7 +16878,7 @@ SMODS.Consumable {
 		if hands.forehand then
 			if G.GAME.hands[hands.forehand].level > 0 then
 				jl.th(hands.forehand)
-				lv = (G.GAME.hands[hands.forehand].level/2) / divisor
+				lv = (G.GAME.hands[hands.forehand].level/divisor)
 				level_up_hand(card, hands.forehand, nil, -lv)
 				levels_siphoned = levels_siphoned + lv
 			end
@@ -17151,6 +17123,101 @@ SMODS.Consumable {
 	set = 'Planet',
 	set_card_type_badge = natsat,
 	pos = { x = 0, y = 10 },
+	cost = 5,
+	unlocked = true,
+	discovered = true,
+	atlas = 'jenplanets',
+    loc_vars = function(self, info_queue, center)
+		local fav = jl.favhand()
+		local hands = jl.adjacenthands(fav)
+        return {vars = {jl.ctu('tarot'), jl.ctu('planet'), jl.ctu('spectral'), jl.ctu('code')}}
+    end,
+	can_use = function(self, card)
+		return jl.canuse()
+	end,
+	use = function(self, card, area, copier)
+		jl.ch()
+		jl.hcm('', '')
+		update_operator_display_custom(' ', G.C.WHITE)
+		delay(1)
+		for k, v in pairs(namaka_data) do
+			local amt = jl.ctu(string.lower(k))
+			update_operator_display_custom(k, v)
+			delay(2)
+			update_operator_display_custom('+' .. number_format(amt), v)
+			delay(2)
+			if amt > 0 then
+				local sel = jl.rndhand(nil, 'jen_namaka_' .. string.lower(k))
+				if (G.SETTINGS.FASTFORWARD or 0) < 1 then
+					for i = 1, math.random(3, 6) do
+						jl.th(G.handlist[math.random(#G.handlist)])
+						delay(0.15)
+					end
+				end
+				jl.th(sel)
+				delay(1)
+				level_up_hand(card, sel, nil, amt)
+			else
+				play_sound_q('timpani')
+				update_operator_display_custom('Nope!', G.C.RED)
+			end
+			delay(1)
+		end
+		jl.ch()
+		update_operator_display()
+	end,
+	bulk_use = function(self, card, area, copier, number)
+		jl.ch()
+		jl.hcm('', '')
+		update_operator_display_custom(' ', G.C.WHITE)
+		delay(1)
+		for i = 1, number do
+			for k, v in pairs(namaka_data) do
+				local amt = jl.ctu(string.lower(k))
+				update_operator_display_custom(k, v)
+				delay(2/i)
+				update_operator_display_custom('+' .. number_format(amt), v)
+				delay(2/i)
+				if amt > 0 then
+					local sel = jl.rndhand(nil, 'jen_namaka_' .. string.lower(k))
+					if i == 1 and (G.SETTINGS.FASTFORWARD or 0) < 1 then
+						for i = 1, math.random(3, 6) do
+							jl.th(G.handlist[math.random(#G.handlist)])
+							delay(0.15)
+						end
+					end
+					jl.th(sel)
+					delay(1/i)
+					level_up_hand(card, sel, nil, amt)
+				else
+					play_sound_q('timpani')
+					update_operator_display_custom('Nope!', G.C.RED)
+				end
+				delay(1/i)
+			end
+		end
+		jl.ch()
+		update_operator_display()
+	end
+}
+
+SMODS.Consumable {
+	key = 'hiiaka',
+	loc_txt = {
+		name = 'Hi\'iaka',
+		text = {
+			'{C:inactive}(Currently placeholder, has the same effect as Namaka)',
+			'The number of {C:tarot}Tarots{}, {C:planet}Planets{}, {C:spectral}Spectrals{} or {C:code}Codes',
+			'you have used throughout the run are',
+			'{C:attention}applied as levels{} to {C:attention}four random {C:purple}poker hands',
+			'{C:inactive}(The same hand can be picked multiple times)',
+			'{C:inactive}({C:tarot}#1#{C:inactive}, {C:planet}#2#{C:inactive}, {C:spectral}#3#{C:inactive}, {C:code}#4#{C:inactive})',
+			'{C:dark_edition,s:0.7,E:2}Art by : patchy'
+		}
+	},
+	set = 'Planet',
+	set_card_type_badge = natsat,
+	pos = { x = 1, y = 10 },
 	cost = 5,
 	unlocked = true,
 	discovered = true,
@@ -19491,8 +19558,7 @@ SMODS.Consumable {
 			kosmos.ability.eternal = true
 			kosmos:add_to_deck()
 			G.jokers:emplace(kosmos)
-			ease_dollars(-G.GAME.dollars)
-			QR(function() G.jokers:set_size_absolute(1) ease_dollars(4) return true end, 99)
+			QR(function() G.jokers:set_size_absolute(1) set_dollars(4) return true end, 99)
 			G.consumeables:change_size_absolute(G.consumeables.config.card_limit)
 		return true end, 1)
 	end
@@ -19641,8 +19707,9 @@ local vchrs = {
 				redeemprev
 			},
 			{ --5
-				'{C:money}Selling{} any {C:attention}non-{C:planet}Planet{} card will',
-				'generate a {C:planet}Planet{} card',
+				'{C:money}Selling{} any card that is',
+				'{C:red}not{} a {C:dark_edition}Negative{}, a {C:planet}Planet{} and/or a {C:attention}playing card',
+				'will generate a {C:planet}Planet{} card',
 				mayoverflow,
 				'{C:inactive}(Black Hole excluded)',
 				' ',
@@ -19879,17 +19946,6 @@ function create_card(_type, area, legendary, _rarity, skip_materialize, soulable
 					return true
 				end }))
 				break
-			elseif cen.set == 'Joker' and get_kosmos() and tostring(cen.rarity or '') == '1' and #SMODS.find_card('j_jen_sigil') <= 0 and jl.chance('sigil_replacement', 2000, true) then
-				G.E_MANAGER:add_event(Event({trigger = 'after', blockable = false, blocking = false, func = function()
-					if card and not card.no_omega then
-						card:set_ability(G.P_CENTERS['j_jen_sigil'])
-						card:set_cost()
-						play_sound('jen_omegacard', .5, 0.4)
-						card:juice_up(1.5, 1.5)
-						Q(function() play_sound_q('jen_chime', .5, 0.65); jl.a('Sigil!', G.SETTINGS.GAMESPEED * 2, 1, G.C.jen_RGB); jl.rd(2); return true end)
-					end
-					return true
-				end }))
 			end
 		end
 	end
@@ -20631,7 +20687,8 @@ function get_blind_amount(ante)
 	local cfg = Jen.config
 	local amnt
 	if math.floor(ante) ~= ante then
-		amnt = (gbar(math.floor(ante)) / 2) + (gbar(math.ceil(ante)) / 2)
+		local ratio = 1 / (ante - math.floor(ante))
+		amnt = (gbar(math.floor(ante)) * ratio) + (gbar(math.ceil(ante)) * (1 - ratio))
 	else
 		amnt = gbar(ante)
 	end
@@ -20642,9 +20699,9 @@ function get_blind_amount(ante)
 		local scalar = Jen.config.blind_scalar[math.min(overante, #Jen.config.blind_scalar)] or 1
 		amnt = amnt * scalar
 		if overante >= Jen.config.ante_pow10_4 then
-			amnt = ten:arrow(4, ten)^amnt
+			amnt = ten^ten^ten^ten^amnt
 		elseif overante >= Jen.config.ante_pow10_3 then
-			amnt = ten:arrow(3, ten)^amnt
+			amnt = ten^ten^ten^amnt
 		elseif overante >= Jen.config.ante_pow10_2 then
 			amnt = ten^ten^amnt
 		elseif overante >= Jen.config.ante_pow10 then
@@ -21677,26 +21734,54 @@ SMODS.Booster{
 		text = {
 			'Choose {C:attention}#1#{} of up to',
 			'{C:attention}#2# {C:almanac,E:1}Almanac {C:attention}Jokers',
+			'{C:green}#3#% chance{} to contain {C:dark_edition,E:1}Jen\'s Sigil',
+			'if you have {C:blood}Kosmos',
+			' ',
+			'{C:red}Contains only Rot if the',
+			'{C:red}current Ante is not greater',
+			'{C:red}than the furthest Ante an',
+			'{C:red}Icon Pack was opened this run',
+			'{C:inactive}(Currently {V:1}Ante #4#{C:inactive})',
 			spriter('patchy')
 		},
 	},
 	atlas = 'jenbooster',
     pos = {x = 0, y = 0},
-    weight = 0.09,
+    weight = 0.1,
     cost = 15,
     config = {extra = 5, choose = 1, icon_pack = true},
     discovered = true,
+	in_pool = function()
+		return (G.GAME.latest_ante_icon_pack_opening or 0) < G.GAME.round_resets.ante
+	end,
     loc_vars = function(self, info_queue, card)
-        return { vars = {card.ability.choose, card.ability.extra} }
+        return { vars = {card.ability.choose, card.ability.extra, math.min(1, 1 / (100 - (G.GAME.icon_pity or 0))) * 100, tostring(((G.GAME or {}).latest_ante_icon_pack_opening or 0)), colours = {((G.GAME or {}).latest_ante_icon_pack_opening or 0) < (((G.GAME or {}).round_resets or {}).ante or 0) and G.C.GREEN or G.C.RED}} }
     end,
     create_card = function(self, card, i)
-		local possible = {}
-		for k, v in pairs(G.P_CENTERS) do
-			if v.set == 'Joker' and string.sub(k, 1, 6) == 'j_jen_' and not Jen.overpowered(v.rarity) then
-				table.insert(possible, v.key)
+		if (G.GAME.latest_ante_icon_pack_opening or 0) < G.GAME.round_resets.ante then
+			if math.floor(i) == math.floor(SMODS.OPENED_BOOSTER.ability.extra) then
+				G.GAME.latest_ante_icon_pack_opening = G.GAME.round_resets.ante
+				if get_kosmos() then
+					if jl.chance('iconpack_sigil', math.max(1, 100 - (G.GAME.icon_pity or 0)), true) then
+						G.GAME.icon_pity = 0
+						return {set = 'Joker', area = G.pack_cards, skip_materialize = true, soulable = false, key = 'j_jen_sigil', key_append = "almanac"}
+					else
+						G.GAME.icon_pity = (G.GAME.icon_pity or 0) + 1
+					end
+				end
+				local possible = {}
+				for k, v in pairs(G.P_CENTERS) do
+					if v.set == 'Joker' and string.sub(k, 1, 6) == 'j_jen_' and not Jen.overpowered(v.rarity) then
+						table.insert(possible, v.key)
+					end
+				end
+				return {set = 'Joker', area = G.pack_cards, skip_materialize = true, soulable = false, key = pseudorandom_element(possible, pseudoseed('almanac' .. G.GAME.round_resets.ante)), key_append = "almanac"}
+			else
+				return {set = 'Joker', area = G.pack_cards, skip_materialize = true, soulable = false, key = pseudorandom_element(possible, pseudoseed('almanac' .. G.GAME.round_resets.ante)), key_append = "almanac"}
 			end
+		else
+			return {set = 'Joker', area = G.pack_cards, skip_materialize = true, soulable = false, key = 'j_jen_rot', key_append = "almanac"}
 		end
-        return {set = 'Joker', area = G.pack_cards, skip_materialize = true, soulable = false, key = pseudorandom_element(possible, pseudoseed('almanac' .. G.GAME.round_resets.ante)), key_append = "almanac"}
     end,
     ease_background_colour = function(self)
         ease_background_colour{new_colour = HEX('000000'), special_colour = HEX('ff0000'), contrast = 5}
