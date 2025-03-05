@@ -527,7 +527,7 @@ local jen_modifierbadges = {
 	unique = {
 		text = {
 			'Unique',
-			'Only one copy may exist'
+			'Can only own one copy'
 		},
 		col = HEX('8f00ff'),
 		tcol = G.C.EDITION
@@ -10326,7 +10326,8 @@ SMODS.Consumable {
 			'{C:attention}Combines{} selected Jokers/Consumables',
 			'if they make up a {C:attention}valid recipe',
 			'{C:inactive}(This card only appears if you have at least 1 fusable)',
-			'{C:inactive}(Some recipes may require more than 2 ingredients. Experiment!)'
+			'{C:inactive}(Some recipes may require more than 2 ingredients. Experiment!)',
+			'{V:1,s:1.25}#1#'
 		}
 	},
 	config = {},
@@ -20571,8 +20572,8 @@ end
 
 local add_to_deckref = Card.add_to_deck
 function Card.add_to_deck(self, from_debuff)
+	local cen = self.gc and self:gc()
     if not from_debuff then
-		local cen = self.gc and self:gc()
 		if cen then
 			if cen.unique then
 				for k, v in ipairs(G.jokers.cards) do
@@ -20636,6 +20637,16 @@ function Card.add_to_deck(self, from_debuff)
 			end
 		end
         jl.jokers({jen_adding_card = true, card = self})
+	elseif cen then
+		if cen.unique then
+			for k, v in ipairs(G.jokers.cards) do
+				if v ~= self and v:gc().key == cen.key then
+					ease_dollars(self.sell_cost or 0)
+					self:destroy()
+					return --blocked
+				end
+			end
+		end
     end
     add_to_deckref(self, from_debuff)
 end
@@ -21759,6 +21770,12 @@ SMODS.Booster{
     end,
     create_card = function(self, card, i)
 		if (G.GAME.latest_ante_icon_pack_opening or 0) < G.GAME.round_resets.ante then
+			local possible = {}
+			for k, v in pairs(G.P_CENTERS) do
+				if v.set == 'Joker' and string.sub(k, 1, 6) == 'j_jen_' and not Jen.overpowered(v.rarity) then
+					table.insert(possible, v.key)
+				end
+			end
 			if math.floor(i) == math.floor(SMODS.OPENED_BOOSTER.ability.extra) then
 				G.GAME.latest_ante_icon_pack_opening = G.GAME.round_resets.ante
 				if get_kosmos() then
@@ -21767,12 +21784,6 @@ SMODS.Booster{
 						return {set = 'Joker', area = G.pack_cards, skip_materialize = true, soulable = false, key = 'j_jen_sigil', key_append = "almanac"}
 					else
 						G.GAME.icon_pity = (G.GAME.icon_pity or 0) + 1
-					end
-				end
-				local possible = {}
-				for k, v in pairs(G.P_CENTERS) do
-					if v.set == 'Joker' and string.sub(k, 1, 6) == 'j_jen_' and not Jen.overpowered(v.rarity) then
-						table.insert(possible, v.key)
 					end
 				end
 				return {set = 'Joker', area = G.pack_cards, skip_materialize = true, soulable = false, key = pseudorandom_element(possible, pseudoseed('almanac' .. G.GAME.round_resets.ante)), key_append = "almanac"}
